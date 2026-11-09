@@ -25,6 +25,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
     "TRADINGAGENTS_MAX_TOKENS":           "max_tokens",
+    "TRADINGAGENTS_NEWS_DIR":             "news_dir",
     # Provider-specific reasoning/thinking knobs (None = each provider's own
     # default). Settable here for non-interactive runs; the CLI also offers an
     # interactive choice, which is skipped when the matching var is set.
@@ -74,13 +75,16 @@ def _apply_env_overrides(config: dict) -> dict:
     return config
 
 
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def build_default_config() -> dict:
     """The built-in defaults with the TRADINGAGENTS_* environment folded in.
 
     Read when the package is imported, as DEFAULT_CONFIG; call it again to see
     the environment as it is now.
     """
-    return _apply_env_overrides({
+    config = _apply_env_overrides({
         "results_dir": os.getenv("TRADINGAGENTS_RESULTS_DIR") or os.path.join(_TRADINGAGENTS_HOME, "logs"),
         "data_cache_dir": os.getenv("TRADINGAGENTS_CACHE_DIR") or os.path.join(_TRADINGAGENTS_HOME, "cache"),
         "memory_log_path": os.getenv("TRADINGAGENTS_MEMORY_LOG_PATH") or os.path.join(_TRADINGAGENTS_HOME, "memory", "trading_memory.md"),
@@ -135,6 +139,9 @@ def build_default_config() -> dict:
         "max_recur_limit": 100,
         # Rounds of tool calls an analyst may make before it is asked for its report.
         "max_tool_rounds": 20,
+        # Folder of news files you imported, <news_dir>/<TICKER>/**/*.json, read by the
+        # "local_news" vendor (see dataflows/vendors/local_news.py).
+        "news_dir": os.path.join(_PROJECT_ROOT, "news"),
         # News / data fetching parameters
         # Increase for longer lookback strategies or to broaden macro coverage;
         # decrease to reduce token usage in agent prompts.
@@ -204,6 +211,14 @@ def build_default_config() -> dict:
         },
 
     })
+    # TRADINGAGENTS_NEWS_VENDOR sets the vendor chain for company and global news,
+    # e.g. "local_news" or "local_news,yfinance"; insider trades keep the news_data
+    # category's vendors, which local_news cannot serve.
+    news_vendor = os.environ.get("TRADINGAGENTS_NEWS_VENDOR")
+    if news_vendor:
+        config["tool_vendors"]["get_news"] = news_vendor
+        config["tool_vendors"]["get_global_news"] = news_vendor
+    return config
 
 
 DEFAULT_CONFIG = build_default_config()
